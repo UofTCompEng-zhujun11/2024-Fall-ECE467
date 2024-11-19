@@ -1,0 +1,71 @@
+sema: 140:0 : size cannot be negative for array a
+sema: 147:8 : use of undefined identifier a
+sema: 147:4 : type mismatch 
+sema: 155:11 : invalid use of identifier a
+sema: 155:20 : invalid use of identifier b
+sema: 155:20 : type mismatch 
+sema: 155:11 : type mismatch 
+sema: 156:15 : use of undefined identifier k
+sema: 156:8 : mismatched return statement 
+sema: 155:4 : invalid condition in while statement
+sema: 158:4 : use of undefined identifier writeInt
+sema: 169:12 : type mismatch 
+sema: 169:4 : type mismatch 
+sema: 171:12 : use of undefined identifier bak
+sema: 171:12 : type mismatch 
+sema: 171:4 : type mismatch 
+sema: 172:9 : type mismatch 
+sema: 172:4 : type mismatch 
+sema: 174:9 : use of undefined identifier bak
+sema: 174:9 : type mismatch 
+sema: 174:4 : type mismatch 
+sema: 175:8 : type mismatch 
+sema: 175:4 : type mismatch 
+sema: 179:8 : use of undefined identifier wcnmd
+sema: 179:4 : invalid condition in if statement
+sema: 182:4 : invalid condition in if statement
+sema: 185:4 : invalid condition in while statement
+sema: 191:11 : use of undefined identifier nmb
+sema: 191:4 : invalid condition in while statement
+sema: 194:4 : use of undefined identifier writeInt
+sema: 195:4 : use of undefined identifier writeInt
+sema: 196:4 : use of undefined identifier writeBool
+sema: 197:4 : use of undefined identifier writeBool
+sema: 198:4 : use of undefined identifier newLine
+sema: 199:4 : use of undefined identifier readInt
+sema: 200:4 : no matching definition for readBool
+sema: 202:0 : redefinition of wuho
+sema: 209:4 : redefinition of mgb
+sema: 212:4 : redefinition of e
+sema: 213:8 : type mismatch 
+sema: 213:4 : type mismatch 
+sema: 217:4 : use of undefined identifier cnm
+sema: 217:10 : use of undefined identifier cnmb
+sema: 217:4 : type mismatch 
+sema: 218:8 : type mismatch 
+sema: 218:4 : type mismatch 
+sema: 219:13 : use of undefined identifier cnm
+sema: 219:8 : no matching definition for wuho
+sema: 219:4 : type mismatch 
+sema: 220:15 : use of undefined identifier fgh
+sema: 220:4 : no matching definition for wuho
+sema: 224:4 : no matching definition for wuho
+sema: 225:4 : no matching definition for wuho
+sema: 226:4 : no matching definition for wuho
+sema: 227:4 : no matching definition for wuho
+sema: 228:4 : no matching definition for wuho
+sema: 229:4 : no matching definition for wuho
+sema: 230:4 : use of undefined identifier nmsl
+sema: 231:8 : invalid use of identifier c
+sema: 231:4 : type mismatch 
+sema: 232:4 : type mismatch 
+sema: 233:4 : invalid use of identifier c
+sema: 233:8 : invalid use of identifier mgb
+sema: 233:4 : type mismatch 
+sema: 235:4 : invalid use of identifier d
+sema: 235:4 : type mismatch 
+sema: 236:8 : invalid use of identifier c
+sema: 236:4 : type mismatch 
+sema: 238:4 : invalid use of identifier c
+sema: 238:4 : type mismatch 
+sema: 241:4 : mismatched return statement 

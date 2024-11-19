@@ -1,0 +1,20 @@
+line 4:15 token recognition error at: '+'
+line 5:3 token recognition error at: '.'
+line 6:4 token recognition error at: '/'
+line 6:7 token recognition error at: '*'
+line 6:10 token recognition error at: '-'
+line 6:16 token recognition error at: '('
+line 6:19 token recognition error at: ')'
+line 6:22 token recognition error at: '!'
+line 6:25 token recognition error at: '@'
+line 6:28 token recognition error at: '#'
+line 6:31 token recognition error at: '$'
+line 6:34 token recognition error at: '%'
+line 6:37 token recognition error at: '^'
+line 6:40 token recognition error at: '&'
+KYWD 2
+BOOL 4
+NUM  8
+ID   22
+WS   0
+EOF  1

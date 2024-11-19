@@ -1,0 +1,9 @@
+submit_log.*
+*.o
+!*/ASTNodes.o
+!lab4/SymTable.o
+!lab4/SemanticAnalyzer.o
+*.bak
+*.interp
+*.tokens
+*.antlr
