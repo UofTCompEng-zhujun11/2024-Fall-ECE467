@@ -94,28 +94,72 @@ void IRGen::visitDeclNode(DeclNode* decl) {
 }
 
 void IRGen::visitArrayDeclNode(ArrayDeclNode* array) {
+    llvm::Type* arrayType;
+    llvm::Value* llvmArrValue;
+    llvm::Function *llvmFunc;
+    llvm::Value *Alloca;
+    SymTable<VariableEntry>* varST;
+    llvm::Constant* initValue;
+
+    arrayType = convertType(array->getType());
+    if (array->isGlobal()) {
+        // Global variable creation
+        initValue = llvm::Constant::getNullValue(arrayType);
+        llvmArrValue = new llvm::GlobalVariable(
+            (*this->TheModule),
+            arrayType,
+            false,
+            llvm::GlobalValue::CommonLinkage,
+            llvm::ConstantAggregateZero::get(arrayType),     
+            array->getIdent()->getName()
+        );
+        varST = findTable(array->getIdent());
+        assert(varST->contains(array->getIdent()->getName()));
+        varST->setLLVMValue(array->getIdent()->getName(), llvmArrValue);
+    } else {
+        // Local variable creation
+        llvmFunc = (*this->TheModule).getFunction(array->getIdent()->getName());
+        Alloca = (*Builder).CreateAlloca(arrayType, nullptr, array->getIdent()->getName());
+        varST = findTable(array->getIdent());
+        assert(varST->contains(array->getIdent()->getName()));
+        varST->setLLVMValue(array->getIdent()->getName(), Alloca);
+    }
     ASTVisitorBase::visitArrayDeclNode(array);
 }
 
 void IRGen::visitFunctionDeclNode(FunctionDeclNode* func) {
+    llvm::Function *llvmFunc;
+    llvm::BasicBlock *EntryBB;
+    llvm::Argument* arg;
+    llvm::Value *Alloca;
+    SymTable<VariableEntry>* varST;
+    std::vector<ParameterNode*> funcParams = func->getParams();
+    llvm::FunctionType *funcRt;
+    std::vector<llvm::Type *> LLVMparams;
+
     if (!func->getProto()){
-        llvm::Function *llvmFunc ;
-        llvm::BasicBlock *EntryBB;
-        llvm::Argument* arg;
-        llvm::Value *Alloca;
-        SymTable<VariableEntry>* varST;
-        std::vector<ParameterNode*> funcParams = func->getParams();
-
         llvmFunc = (*this->TheModule).getFunction(func->getIdent()->getName());
-        EntryBB = llvm::BasicBlock::Create(*TheContext, "entry", llvmFunc);
+        if (llvmFunc == nullptr){
+            for (int i = 0; i < funcParams.size(); i++){
+                LLVMparams.push_back(convertType(funcParams[i]->getType()));
+            }
+            funcRt = llvm::FunctionType::get(convertType(func->getRetType()), LLVMparams, false);
+            llvmFunc = Function::Create(funcRt, Function::ExternalLinkage, func->getIdent()->getName(), this->TheModule.get());
+        }
 
+        EntryBB = llvm::BasicBlock::Create(*TheContext, "entry", llvmFunc);
         (*Builder).SetInsertPoint(EntryBB);
 
         //code from Kaleidoscope
         int i = 0;
-        for (auto &Arg : llvmFunc->args())
-            Arg.setName(funcParams[i++]->getIdent()->getName());
-
+        for (auto &Arg : llvmFunc->args()){
+            Arg.setName(funcParams[i]->getIdent()->getName());
+            if (funcParams[i]->getType()->getTypeEnum() == TypeNode::Bool) {
+                Arg.addAttr(llvm::Attribute::ZExt);
+            }
+            i++;
+        }
+            
         for (int i = 0; i < llvmFunc->arg_size(); i++) {
             arg = llvmFunc->getArg(i);
             Alloca = (*Builder).CreateAlloca(arg->getType(), nullptr, arg->getName());
@@ -133,6 +177,37 @@ void IRGen::visitFunctionDeclNode(FunctionDeclNode* func) {
 }
 
 void IRGen::visitScalarDeclNode(ScalarDeclNode* scalar) {
+    llvm::Type* varType;
+    llvm::Value* llvmVarValue;
+    llvm::Function *llvmFunc;
+    llvm::Value *Alloca;
+    SymTable<VariableEntry>* varST;
+    llvm::Constant* initValue;
+
+    varType = convertType(scalar->getType());
+    if (scalar->isGlobal()) {
+        // Global variable creation
+        initValue = llvm::Constant::getNullValue(varType);
+        llvmVarValue = new llvm::GlobalVariable(
+            (*this->TheModule),
+            varType,
+            false,
+            llvm::GlobalValue::CommonLinkage,
+            initValue,     
+            scalar->getIdent()->getName()
+        );
+        varST = findTable(scalar->getIdent());
+        assert(varST->contains(scalar->getIdent()->getName()));
+        varST->setLLVMValue(scalar->getIdent()->getName(), Alloca);
+    } else {
+        // Local variable creation
+        llvmFunc = (*this->TheModule).getFunction(scalar->getIdent()->getName());
+        Alloca = (*Builder).CreateAlloca(varType, nullptr, scalar->getIdent()->getName());
+        varST = findTable(scalar->getIdent());
+        assert(varST->contains(scalar->getIdent()->getName()));
+        varST->setLLVMValue(scalar->getIdent()->getName(), Alloca);
+    }
+
     ASTVisitorBase::visitScalarDeclNode(scalar);
 }
 
@@ -174,6 +249,12 @@ void IRGen::visitConstantExprNode(ConstantExprNode* constant) {
 }
 
 void IRGen::visitBoolConstantNode(BoolConstantNode* boolConst) {
+    boolConst->setTypeBool();
+
+    llvm::Value* llvmBoolconstant;
+
+    llvmBoolconstant = llvm::ConstantInt::get(convertType(boolConst->getType()), boolConst->getVal(), false);
+    boolConst->setLLVMValue(llvmBoolconstant);
     ASTVisitorBase::visitBoolConstantNode(boolConst);
 }
 
@@ -201,6 +282,53 @@ void IRGen::visitIntExprNode(IntExprNode* intExpr) {
 }
 
 void IRGen::visitReferenceExprNode(ReferenceExprNode* ref) {
+    llvm::Value* refValue = nullptr;
+    llvm::Value* result = nullptr;
+    llvm::Value* elementLLVMVal;
+    llvm::Value* indices[2]; 
+    SymTable<VariableEntry>* varST;
+    VariableEntry var;
+    llvm::ArrayRef<Value*> LLVMIdx;
+    llvm::Type* ArrType;
+    AssignStmtNode* assignmentPtr;
+    
+    assignmentPtr = dynamic_cast<AssignStmtNode*>(ref->getParent());
+    if (assignmentPtr == nullptr){
+        varST = findTable(ref->getIdent());
+        var = varST->get(ref->getIdent()->getName());
+        refValue = var.getValue();
+        assert(refValue != nullptr);
+
+        if (ref->getIndex() != nullptr) {
+            ref->getIndex()->visit(this);
+            indices[1] = ref->getIndex()->getLLVMValue();
+            indices[0] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*TheContext), 0);
+            LLVMIdx = llvm::ArrayRef<Value*>(indices, 2);
+            elementLLVMVal = (*Builder).CreateGEP(
+                convertType(var.getType()),
+                refValue,
+                LLVMIdx,
+            );
+            // Load
+            switch(var.getType()->getTypeEnum()){
+                case TypeNode::TypeEnum::Void:
+                    ArrType = llvm::Type::getVoidTy(*TheContext);
+                    break;
+                case TypeNode::TypeEnum::Int:
+                    ArrType = llvm::Type::getInt32Ty(*TheContext);
+                    break;
+                case TypeNode::TypeEnum::Bool:
+                    ArrType = llvm::Type::getInt1Ty(*TheContext);
+                    break;
+            }
+            result = (*Builder).CreateLoad(ArrType, elementLLVMVal);
+        } else {
+            // Handle scalar reference
+            result = (*Builder).CreateLoad(convertType(var.getType()), refValue);
+        }
+        ref->setLLVMValue(result);
+    }
+    
     ASTVisitorBase::visitReferenceExprNode(ref);
 }
 
@@ -227,22 +355,6 @@ void IRGen::visitProgramNode(ProgramNode* prg) {
     this->Builder = std::make_unique<llvm::IRBuilder<>>(*(this->TheContext));
     this->prog = prg;
 
-    std::vector<llvm::Type *> LLVMparams;
-    std::vector<TypeNode*> funcParams;
-    llvm::FunctionType *funcRt;
-    llvm::Function *llvmFunc;
-    SymTable<FunctionEntry>* funcST = prg->getFuncTable();
-
-    for (auto it = funcST->getTable()->begin(); it != funcST->getTable()->end(); it++){
-        auto STpair = *it;
-        funcParams = STpair.second.parameterTypes;
-        for (int i = 0; i < funcParams.size(); i++){
-            LLVMparams.push_back(convertType(funcParams[i]));
-        }
-        funcRt = llvm::FunctionType::get(convertType(STpair.second.returnType), LLVMparams, false);
-        llvmFunc = Function::Create(funcRt, Function::ExternalLinkage, STpair.first, this->TheModule.get());
-    }
-
     ASTVisitorBase::visitProgramNode(prg);
 }
 
@@ -254,6 +366,44 @@ void IRGen::visitAssignStmtNode(AssignStmtNode* assign) {
     //visit target and val
     assign->getTarget()->visit(this);
     assign->getValue()->visit(this);
+
+    llvm::Value* targetLLVMVal;
+    llvm::Value* valueLLVMVal;
+    ReferenceExprNode* ref;
+    llvm::Value* refValue = nullptr;
+    llvm::Value* elementLLVMVal;
+    llvm::Value* indices[2]; 
+    SymTable<VariableEntry>* varST;
+    VariableEntry var;
+    llvm::ArrayRef<Value*> LLVMIdx;
+    llvm::Type* ArrType;
+
+    ref = assign->getTarget();
+    
+    varST = findTable(ref->getIdent());
+    var = varST->get(ref->getIdent()->getName());
+    refValue = var.getValue();
+    assert(refValue != nullptr);
+
+    if (ref->getIndex() != nullptr) {
+        ref->getIndex()->visit(this);
+        indices[1] = ref->getIndex()->getLLVMValue();
+        indices[0] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*TheContext), 0);
+        LLVMIdx = llvm::ArrayRef<Value*>(indices, 2);
+        elementLLVMVal = (*Builder).CreateGEP(
+            convertType(var.getType()),
+            refValue,
+            LLVMIdx,
+        );
+        targetLLVMVal = elementLLVMVal;
+    } else {
+        targetLLVMVal = refValue;
+    }
+    valueLLVMVal = assign->getValue()->getLLVMValue();         
+
+    // Create a store instruction
+    (*Builder).CreateStore(valueLLVMVal, targetLLVMVal);
+
     ASTVisitorBase::visitAssignStmtNode(assign);
 }
 

@@ -26,7 +26,7 @@ LLVM_MODULES = support bitwriter core
 LLVM_LIBS     = `$(LLVM_BIN_DIR)/llvm-config --libs --system-libs $(LLVM_MODULES)`
 
 CC            = g++ 
-CC_OPT        = -std=c++17 -w
+CC_OPT        = -std=c++17 -w -g
 
 ANTLR         = java -jar $(ECE467_ROOT)/ANTLR-$(ANTLR_VER)/antlr-$(ANTLR_VER)-complete.jar
 ANTLR_OPTS    = -no-listener -visitor -Dlanguage=Cpp
