@@ -198,7 +198,7 @@ void IRGen::visitScalarDeclNode(ScalarDeclNode* scalar) {
         );
         varST = findTable(scalar->getIdent());
         assert(varST->contains(scalar->getIdent()->getName()));
-        varST->setLLVMValue(scalar->getIdent()->getName(), Alloca);
+        varST->setLLVMValue(scalar->getIdent()->getName(), llvmVarValue);
     } else {
         // Local variable creation
         llvmFunc = (*this->TheModule).getFunction(scalar->getIdent()->getName());
@@ -219,6 +219,59 @@ void IRGen::visitBinaryExprNode(BinaryExprNode* bin) {
     //visit nodes
     bin->getLeft()->visit(this);
     bin->getRight()->visit(this);
+
+    ExprNode::Opcode binOP;
+    llvm::Value *leftLLVMval;
+    llvm::Value *rightLLVMval;
+    llvm::Value* resultLLVMval;
+
+    leftLLVMval = bin->getLeft()->getLLVMValue();
+    rightLLVMval = bin->getRight()->getLLVMValue();
+
+    binOP = bin->getOpcode();
+    switch (binOP) {
+        case ExprNode::Addition:
+            resultLLVMval = Builder->CreateAdd(leftLLVMval, rightLLVMval);
+            break;
+        case ExprNode::Subtraction:
+            resultLLVMval = Builder->CreateSub(leftLLVMval, rightLLVMval);
+            break;
+        case ExprNode::Multiplication:
+            resultLLVMval = Builder->CreateMul(leftLLVMval, rightLLVMval);
+            break;
+        case ExprNode::Division:
+            resultLLVMval = Builder->CreateSDiv(leftLLVMval, rightLLVMval);
+            break;
+        case ExprNode::And:
+            resultLLVMval = Builder->CreateAnd(leftLLVMval, rightLLVMval);
+            break;
+        case ExprNode::Or:
+            resultLLVMval = Builder->CreateOr(leftLLVMval, rightLLVMval);
+            break;
+        case ExprNode::Equal:
+            resultLLVMval = Builder->CreateICmpEQ(leftLLVMval, rightLLVMval);
+            break;
+        case ExprNode::NotEqual:
+            resultLLVMval = Builder->CreateICmpNE(leftLLVMval, rightLLVMval);
+            break;
+        case ExprNode::LessThan:
+            resultLLVMval = Builder->CreateICmpSLT(leftLLVMval, rightLLVMval);
+            break;
+        case ExprNode::LessorEqual:
+            resultLLVMval = Builder->CreateICmpSLE(leftLLVMval, rightLLVMval);
+            break;
+        case ExprNode::Greater:
+            resultLLVMval = Builder->CreateICmpSGT(leftLLVMval, rightLLVMval);
+            break;
+        case ExprNode::GreaterorEqual:
+            resultLLVMval = Builder->CreateICmpSGE(leftLLVMval, rightLLVMval);
+            break;
+        default:
+            assert(false);
+            return;
+    }
+    bin->setLLVMValue(resultLLVMval);
+
     ASTVisitorBase::visitBinaryExprNode(bin);
 }
 
@@ -236,11 +289,24 @@ void IRGen::visitBoolExprNode(BoolExprNode* boolExpr) {
 
 void IRGen::visitCallExprNode(CallExprNode* call) {
     std::vector<ArgumentNode*> funcArgs;
+    std::vector<llvm::Value*> llvmArgs;
+    llvm::Value* argVal;
+    llvm::Function* callee;
+    llvm::Value* callRet;
+
     funcArgs = call->getArguments();
     //visit args
     for (int i = 0; i < funcArgs.size(); i++){
         funcArgs[i]->visit(this);
+        argVal = funcArgs[i]->getExpr()->getLLVMValue();
+        llvmArgs.push_back(argVal);
     }
+
+    callee = TheModule->getFunction(call->getIdent()->getName());
+    callRet = Builder->CreateCall(callee, llvmArgs);
+
+    call->setLLVMValue(callRet);
+
     ASTVisitorBase::visitCallExprNode(call);
 }
 
@@ -295,6 +361,7 @@ void IRGen::visitReferenceExprNode(ReferenceExprNode* ref) {
     assignmentPtr = dynamic_cast<AssignStmtNode*>(ref->getParent());
     if (assignmentPtr == nullptr){
         varST = findTable(ref->getIdent());
+        assert(varST->contains(ref->getIdent()->getName()));
         var = varST->get(ref->getIdent()->getName());
         refValue = var.getValue();
         assert(refValue != nullptr);
@@ -307,7 +374,7 @@ void IRGen::visitReferenceExprNode(ReferenceExprNode* ref) {
             elementLLVMVal = (*Builder).CreateGEP(
                 convertType(var.getType()),
                 refValue,
-                LLVMIdx,
+                LLVMIdx
             );
             // Load
             switch(var.getType()->getTypeEnum()){
@@ -327,6 +394,11 @@ void IRGen::visitReferenceExprNode(ReferenceExprNode* ref) {
             result = (*Builder).CreateLoad(convertType(var.getType()), refValue);
         }
         ref->setLLVMValue(result);
+    } else {
+        varST = findTable(ref->getIdent());
+        var = varST->get(ref->getIdent()->getName());
+        refValue = var.getValue();
+        ref->setLLVMValue(refValue);
     }
     
     ASTVisitorBase::visitReferenceExprNode(ref);
@@ -334,11 +406,29 @@ void IRGen::visitReferenceExprNode(ReferenceExprNode* ref) {
 
 void IRGen::visitUnaryExprNode(UnaryExprNode* unary) {
     ExprNode* unaExprOperand;
+    llvm::Value *unaExprOperandLLVMval;
+    llvm::Value* resultLLVMval;
+    ExprNode::Opcode unaOP;
 
     //visit val first
     unaExprOperand = unary->getOperand();
     // assert(unaExprOperand != nullptr);
     unaExprOperand->visit(this);
+    unaExprOperandLLVMval = unaExprOperand->getLLVMValue();
+
+    unaOP = unary->getOpcode();
+    switch (unaOP) {
+        case ExprNode::Not:
+            resultLLVMval = Builder->CreateNot(unaExprOperandLLVMval);
+            break;
+        case ExprNode::Minus:
+            resultLLVMval = Builder->CreateNeg(unaExprOperandLLVMval);
+            break;
+        default:
+            assert(false);
+    }
+    unary->setLLVMValue(resultLLVMval);
+
     ASTVisitorBase::visitUnaryExprNode(unary);
 }
 
@@ -393,7 +483,7 @@ void IRGen::visitAssignStmtNode(AssignStmtNode* assign) {
         elementLLVMVal = (*Builder).CreateGEP(
             convertType(var.getType()),
             refValue,
-            LLVMIdx,
+            LLVMIdx
         );
         targetLLVMVal = elementLLVMVal;
     } else {
@@ -427,7 +517,10 @@ void IRGen::visitReturnStmtNode(ReturnStmtNode* ret) {
     if (retExpr != nullptr)
         retExpr->visit(this);
 
-    Builder->CreateRet(ret->getReturn()->getLLVMValue());
+    if (retExpr != nullptr)
+        Builder->CreateRet(retExpr->getLLVMValue());
+    else
+        Builder->CreateRetVoid();
     ASTVisitorBase::visitReturnStmtNode(ret);
 }
 
