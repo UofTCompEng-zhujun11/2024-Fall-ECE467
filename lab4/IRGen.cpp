@@ -128,8 +128,8 @@ void IRGen::visitArrayDeclNode(ArrayDeclNode* array) {
 }
 
 void IRGen::visitFunctionDeclNode(FunctionDeclNode* func) {
-    llvm::Function *llvmFunc;
-    llvm::BasicBlock *EntryBB;
+    llvm::Function *llvmFunc = nullptr;
+    llvm::BasicBlock *Entryblock;
     llvm::Argument* arg;
     llvm::Value *Alloca;
     SymTable<VariableEntry>* varST;
@@ -137,18 +137,19 @@ void IRGen::visitFunctionDeclNode(FunctionDeclNode* func) {
     llvm::FunctionType *funcRt;
     std::vector<llvm::Type *> LLVMparams;
 
-    if (!func->getProto()){
-        llvmFunc = (*this->TheModule).getFunction(func->getIdent()->getName());
-        if (llvmFunc == nullptr){
-            for (int i = 0; i < funcParams.size(); i++){
-                LLVMparams.push_back(convertType(funcParams[i]->getType()));
-            }
-            funcRt = llvm::FunctionType::get(convertType(func->getRetType()), LLVMparams, false);
-            llvmFunc = Function::Create(funcRt, Function::ExternalLinkage, func->getIdent()->getName(), this->TheModule.get());
+    
+    llvmFunc = (*this->TheModule).getFunction(func->getIdent()->getName());
+    if (llvmFunc == nullptr){
+        for (int i = 0; i < funcParams.size(); i++){
+            LLVMparams.push_back(convertType(funcParams[i]->getType()));
         }
+        funcRt = llvm::FunctionType::get(convertType(func->getRetType()), LLVMparams, false);
+        llvmFunc = Function::Create(funcRt, Function::ExternalLinkage, func->getIdent()->getName(), this->TheModule.get());
+    }
 
-        EntryBB = llvm::BasicBlock::Create(*TheContext, "entry", llvmFunc);
-        (*Builder).SetInsertPoint(EntryBB);
+    if (!func->getProto()){
+        Entryblock = llvm::BasicBlock::Create(*TheContext, "entry", llvmFunc);
+        (*Builder).SetInsertPoint(Entryblock);
 
         //code from Kaleidoscope
         int i = 0;
@@ -168,11 +169,10 @@ void IRGen::visitFunctionDeclNode(FunctionDeclNode* func) {
             varST->setLLVMValue(funcParams[i]->getIdent()->getName(), Alloca);
             (*Builder).CreateStore(arg, Alloca);
         }
-
         //visit scope
         func->getBody()->visit(this);
     }
-    
+
     ASTVisitorBase::visitFunctionDeclNode(func);
 }
 
@@ -445,6 +445,33 @@ void IRGen::visitProgramNode(ProgramNode* prg) {
     this->Builder = std::make_unique<llvm::IRBuilder<>>(*(this->TheContext));
     this->prog = prg;
 
+    llvm::Function *llvmFunc = nullptr;
+    llvm::FunctionType *funcRt;
+    std::vector<llvm::Type *> LLVMparams;
+
+    if (prg->useIo()){
+        LLVMparams.push_back(llvm::Type::getInt1Ty(*TheContext));
+        funcRt = llvm::FunctionType::get(llvm::Type::getVoidTy(*TheContext), LLVMparams, false);
+        llvmFunc = Function::Create(funcRt, Function::ExternalLinkage, "writeBool", this->TheModule.get());
+        for (llvm::Argument& arg : llvmFunc->args()) 
+                arg.addAttr(llvm::Attribute::ZExt);
+
+        LLVMparams.clear();
+        LLVMparams.push_back(llvm::Type::getInt32Ty(*TheContext));
+        funcRt = llvm::FunctionType::get(llvm::Type::getVoidTy(*TheContext), LLVMparams, false);
+        llvmFunc = Function::Create(funcRt, Function::ExternalLinkage, "writeInt", this->TheModule.get());
+
+        LLVMparams.clear();
+        funcRt = llvm::FunctionType::get(llvm::Type::getVoidTy(*TheContext), LLVMparams, false);
+        llvmFunc = Function::Create(funcRt, Function::ExternalLinkage, "newLine", this->TheModule.get());
+
+        funcRt = llvm::FunctionType::get(llvm::Type::getInt32Ty(*TheContext), LLVMparams, false);
+        llvmFunc = Function::Create(funcRt, Function::ExternalLinkage, "readInt", this->TheModule.get());
+
+        funcRt = llvm::FunctionType::get(llvm::Type::getInt1Ty(*TheContext), LLVMparams, false);
+        llvmFunc = Function::Create(funcRt, Function::ExternalLinkage, "readBool", this->TheModule.get());
+    }
+
     ASTVisitorBase::visitProgramNode(prg);
 }
 
@@ -503,10 +530,37 @@ void IRGen::visitExprStmtNode(ExprStmtNode* expr) {
 }
 
 void IRGen::visitIfStmtNode(IfStmtNode* ifStmt) {
-    //vist first
+    llvm::Function* parentFunction;
+    llvm::BasicBlock* thenBB;
+    llvm::BasicBlock* elseBB;
+    llvm::BasicBlock* exitBB;
+    llvm::Value* condValue;
+
+    parentFunction = Builder->GetInsertBlock()->getParent();
+    thenBB = llvm::BasicBlock::Create(*TheContext, "then", parentFunction);
+    exitBB = llvm::BasicBlock::Create(*TheContext, "merge", parentFunction);
+    if (ifStmt->getHasElse()) elseBB = llvm::BasicBlock::Create(*TheContext, "else", parentFunction);
+
     ifStmt->getCondition()->visit(this);
+    condValue = ifStmt->getCondition()->getLLVMValue();
+
+    if (ifStmt->getHasElse())
+        Builder->CreateCondBr(condValue, thenBB, elseBB);
+    else
+        Builder->CreateCondBr(condValue, thenBB, exitBB);
+
+    Builder->SetInsertPoint(thenBB);
     ifStmt->getThen()->visit(this);
-    if (ifStmt->getHasElse()) ifStmt->getElse()->visit(this);
+    Builder->CreateBr(exitBB);
+
+    if (ifStmt->getHasElse()) {
+        Builder->SetInsertPoint(elseBB);
+        ifStmt->getElse()->visit(this);
+        Builder->CreateBr(exitBB);
+    }
+
+    Builder->SetInsertPoint(exitBB);
+
     ASTVisitorBase::visitIfStmtNode(ifStmt);
 }
 
@@ -533,8 +587,32 @@ void IRGen::visitScopeNode(ScopeNode* scope) {
 }
 
 void IRGen::visitWhileStmtNode(WhileStmtNode* whileStmt) {
+    // Create the basic blocks
+    llvm::Function* parentFunction;
+    llvm::BasicBlock* condblock;
+    llvm::BasicBlock* bodyblock;
+    llvm::BasicBlock* exitblock;
+    llvm::Value* condValue;
+
+    parentFunction = Builder->GetInsertBlock()->getParent();
+    condblock = llvm::BasicBlock::Create(*TheContext, "while.cond", parentFunction);
+    bodyblock = llvm::BasicBlock::Create(*TheContext, "while.body", parentFunction);
+    exitblock = llvm::BasicBlock::Create(*TheContext, "while.exit", parentFunction);
+
+    Builder->CreateBr(condblock);
+    Builder->SetInsertPoint(condblock);
     whileStmt->getCondition()->visit(this);
+    condValue = whileStmt->getCondition()->getLLVMValue();
+
+    Builder->CreateCondBr(condValue, bodyblock, exitblock);
+
+    Builder->SetInsertPoint(bodyblock);
     whileStmt->getBody()->visit(this);
+
+    Builder->CreateBr(condblock);
+
+    Builder->SetInsertPoint(exitblock);
+
     ASTVisitorBase::visitWhileStmtNode(whileStmt);
 }
 
