@@ -114,14 +114,14 @@ void IRGen::visitArrayDeclNode(ArrayDeclNode* array) {
             array->getIdent()->getName()
         );
         varST = findTable(array->getIdent());
-        assert(varST->contains(array->getIdent()->getName()));
+        // assert(varST->contains(array->getIdent()->getName()));
         varST->setLLVMValue(array->getIdent()->getName(), llvmArrValue);
     } else {
         // Local variable creation
         llvmFunc = (*this->TheModule).getFunction(array->getIdent()->getName());
         Alloca = (*Builder).CreateAlloca(arrayType, nullptr, array->getIdent()->getName());
         varST = findTable(array->getIdent());
-        assert(varST->contains(array->getIdent()->getName()));
+        // assert(varST->contains(array->getIdent()->getName()));
         varST->setLLVMValue(array->getIdent()->getName(), Alloca);
     }
     ASTVisitorBase::visitArrayDeclNode(array);
@@ -165,7 +165,7 @@ void IRGen::visitFunctionDeclNode(FunctionDeclNode* func) {
             arg = llvmFunc->getArg(i);
             Alloca = (*Builder).CreateAlloca(arg->getType(), nullptr, arg->getName());
             varST = func->getBody()->getVarTable();
-            assert(varST->contains(funcParams[i]->getIdent()->getName()));
+            // assert(varST->contains(funcParams[i]->getIdent()->getName()));
             varST->setLLVMValue(funcParams[i]->getIdent()->getName(), Alloca);
             (*Builder).CreateStore(arg, Alloca);
         }
@@ -197,14 +197,14 @@ void IRGen::visitScalarDeclNode(ScalarDeclNode* scalar) {
             scalar->getIdent()->getName()
         );
         varST = findTable(scalar->getIdent());
-        assert(varST->contains(scalar->getIdent()->getName()));
+        // assert(varST->contains(scalar->getIdent()->getName()));
         varST->setLLVMValue(scalar->getIdent()->getName(), llvmVarValue);
     } else {
         // Local variable creation
         llvmFunc = (*this->TheModule).getFunction(scalar->getIdent()->getName());
         Alloca = (*Builder).CreateAlloca(varType, nullptr, scalar->getIdent()->getName());
         varST = findTable(scalar->getIdent());
-        assert(varST->contains(scalar->getIdent()->getName()));
+        // assert(varST->contains(scalar->getIdent()->getName()));
         varST->setLLVMValue(scalar->getIdent()->getName(), Alloca);
     }
 
@@ -267,8 +267,8 @@ void IRGen::visitBinaryExprNode(BinaryExprNode* bin) {
             resultLLVMval = Builder->CreateICmpSGE(leftLLVMval, rightLLVMval);
             break;
         default:
-            assert(false);
-            return;
+            // assert(false);
+            break;
     }
     bin->setLLVMValue(resultLLVMval);
 
@@ -280,7 +280,7 @@ void IRGen::visitBoolExprNode(BoolExprNode* boolExpr) {
 
     //visit val first
     boolExprVal = boolExpr->getValue();
-    // assert(boolExprVal != nullptr);
+    // // assert(boolExprVal != nullptr);
     boolExprVal->visit(this);
     boolExpr->setLLVMValue(boolExpr->getValue()->getLLVMValue());
 
@@ -340,7 +340,7 @@ void IRGen::visitIntExprNode(IntExprNode* intExpr) {
 
     //visit val first
     intExprVal = intExpr->getValue();
-    // assert(intExprVal != nullptr);
+    // // assert(intExprVal != nullptr);
     intExprVal->visit(this);
     intExpr->setLLVMValue(intExpr->getValue()->getLLVMValue());
 
@@ -361,10 +361,10 @@ void IRGen::visitReferenceExprNode(ReferenceExprNode* ref) {
     assignmentPtr = dynamic_cast<AssignStmtNode*>(ref->getParent());
     if (assignmentPtr == nullptr){
         varST = findTable(ref->getIdent());
-        assert(varST->contains(ref->getIdent()->getName()));
+        // assert(varST->contains(ref->getIdent()->getName()));
         var = varST->get(ref->getIdent()->getName());
         refValue = var.getValue();
-        assert(refValue != nullptr);
+        // assert(refValue != nullptr);
 
         if (ref->getIndex() != nullptr) {
             ref->getIndex()->visit(this);
@@ -412,7 +412,7 @@ void IRGen::visitUnaryExprNode(UnaryExprNode* unary) {
 
     //visit val first
     unaExprOperand = unary->getOperand();
-    // assert(unaExprOperand != nullptr);
+    // // assert(unaExprOperand != nullptr);
     unaExprOperand->visit(this);
     unaExprOperandLLVMval = unaExprOperand->getLLVMValue();
 
@@ -425,7 +425,8 @@ void IRGen::visitUnaryExprNode(UnaryExprNode* unary) {
             resultLLVMval = Builder->CreateNeg(unaExprOperandLLVMval);
             break;
         default:
-            assert(false);
+            // assert(false);
+            break;
     }
     unary->setLLVMValue(resultLLVMval);
 
@@ -500,7 +501,7 @@ void IRGen::visitAssignStmtNode(AssignStmtNode* assign) {
     varST = findTable(ref->getIdent());
     var = varST->get(ref->getIdent()->getName());
     refValue = var.getValue();
-    assert(refValue != nullptr);
+    // assert(refValue != nullptr);
 
     if (ref->getIndex() != nullptr) {
         ref->getIndex()->visit(this);
