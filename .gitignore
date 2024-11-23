@@ -7,3 +7,4 @@ submit_log.*
 *.interp
 *.tokens
 *.antlr
+lab3/smallC_raw.g4
